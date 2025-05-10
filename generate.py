@@ -5,6 +5,11 @@ import time
 from PIL import Image
 import clip
 import torch
+import os
+import shutil
+from pathlib import Path
+import subprocess
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -14,6 +19,8 @@ if __name__ == '__main__':
     group.add_argument('--text', required=False)
     group.add_argument('--image', required=False)
     group.add_argument('--file', required=False)
+    group.add_argument('--directory', required=False)
+    group.add_argument('--directory_out', required=False)
     args = parser.parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"using {device}")
@@ -39,3 +46,21 @@ if __name__ == '__main__':
                 output_file.write(f'{embedding}\n')
             et = time.time()
             print(f'{c} embeddings generated in {round(et-st, 3)}s')
+    elif args.directory():
+        base_folder = Path(args.directory)
+        destination = Path(args.directory_out)
+        destination.mkdir(exist_ok=True)
+        with open('output.txt', 'w') as output_file:
+            for subfolder in base_folder.iterdir():
+                if subfolder.is_dir():
+                    for file in subfolder.iterdir():
+                        if file.is_file():
+                            try:
+                                if file.name.startswith('.') or not (file.name.contains('JPEG') and file.name.contains('jpg')):
+                                    continue
+                                image = preprocess(Image.open(file)).unsqueeze(0).to(device)
+                                with torch.no_grad():
+                                    output_file.write(f'{file.name}: {model.encode_image(image)[0].tolist()}\n')
+                            except Exception as e:
+                                print(e)
+        
