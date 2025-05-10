@@ -20,7 +20,6 @@ if __name__ == '__main__':
     group.add_argument('--image', required=False)
     group.add_argument('--file', required=False)
     group.add_argument('--directory', required=False)
-    group.add_argument('--directory_out', required=False)
     args = parser.parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"using {device}")
@@ -48,7 +47,7 @@ if __name__ == '__main__':
             print(f'{c} embeddings generated in {round(et-st, 3)}s')
     elif args.directory():
         base_folder = Path(args.directory)
-        destination = Path(args.directory_out)
+        destination = Path(str(args.directory_out) + '-out')
         destination.mkdir(exist_ok=True)
         with open('output.txt', 'w') as output_file:
             for subfolder in base_folder.iterdir():
