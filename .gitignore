@@ -1,3 +1,22 @@
 .idea*
 results_*.html
-test.py
+rsearch % ls -a
+.
+..
+.DS_Store
+.git
+.gitignore
+__pycache__
+data
+flags
+format_schemas
+metadata
+metadata.parquet
+metadata_dropped
+output.jsonl
+output.txt
+preprocessed_configs
+store
+tmp
+user_files
+uuid
