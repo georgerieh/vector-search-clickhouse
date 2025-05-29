@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>ClickSearch: Results for search image</title>
+    <title>ClickSearch: Results for "a sleepy ridgeback dog"</title>
     <style>
 			html {
 				background: #151515 linear-gradient(101.54deg, #151515 0.61%, #1D1D1D 96.74%);
@@ -167,18 +167,12 @@
 				{% else %}
                 <div class="grid-item">
 					<h2>Results for:</h2>
-                    <img src="{{ url_for('serve_file', filename=source_image | urlencode) }}"/>
+                    <img src="{{ source_image }}"/>
                 </div>
 				{% endif %}
 				</div>
-				<div class='section'>
-				<form action="/" method="post" enctype="multipart/form-data">
-					<input type="text" id="search" name="search" placeholder="Search..."">
-					<input type="file" id="image" name="image" accept="image/*">
 
-					<button name="forwardBtn" type="submit">Look up</button>
-				</form>				
-				<br>
+				<div class='section'>
 				<div class='results-grid'>
 					<div class='key'>Table:</div>
 					<div class='value'>{{ table }}</div>
@@ -187,6 +181,7 @@
 					<div class='key'>Feature Generation time:</div>
 					<div class='value'>{{ gen_time }} sec</div>
 				</div>
+
 				<div class='results-grid'>
 					<div class='key'>Query time:</div>
 					<div class='value'>{{ query_time }} sec</div>
@@ -199,19 +194,11 @@
 		<div class='grid'>
             {% for image in images %}
             <div class="grid-item">
-				<img src="{{ url_for('serve_file', filename=image.url | urlencode) }}" style="width: 300px; height: auto;"> 				
+                <img src="{{ image.url }}"/>
 				<p>
-					<em>Score: {{ image.score }} 
-					{{ image.path }}</em>
+					<em>Score: {{ image.score }}</em>
+					{{image.caption}}
 				</p>
-				<form action="{{ url_for('delete_photo') }}" method="post">
-					<input type="hidden" name="image_path" value="{{ image.path }}">
-					<button type="submit" class="delete-button">Delete</button>
-				</form>
-				<!-- <form action="/" method="post">
-					<input type="hidden" name="file_path" value="{{ image.url }}">
-					<button name="delete" type="submit">delete</button>
-				</form>		 -->
             </div>
             {% endfor %}
 		</div>

@@ -3,7 +3,7 @@ import argparse
 import os
 import sys
 from typing import List
-from urllib.parse import unquote
+
 import time
 import webbrowser
 from PIL import Image
@@ -13,20 +13,20 @@ import clip
 import torch
 from pyparsing import *
 from dataclasses import dataclass
-import io
+
 ppc = pyparsing_common
 
 
 def _search(client, table, column, features, limit=10, filter=''):
     st = time.time()
     order = "ASC"
-    columns = ['path', 'location', f'L2Distance({column},{features}) AS score', column]
+    columns = ['url', 'caption', f'L2Distance({column},{features}) AS score', column]
     filter = f"WHERE {filter}" if filter != '' else ""
     query = f'SELECT {",".join(columns)} FROM {table} {filter} ORDER BY score {order} LIMIT {limit}'
     result = client.query(query)
     et = time.time()
     rows = [{
-        'url': unquote(row[0]),
+        'url': row[0],
         'caption': row[1],
         'score': round(row[2], 3),
         'embedding': row[3]
@@ -35,24 +35,24 @@ def _search(client, table, column, features, limit=10, filter=''):
     return rows, {'read_rows': result.summary['read_rows'], 'query_time': round(et - st, 3)}
 
 
-def search_with_text(client, model, table, text, limit=10):
+def search_with_text(client, model, table, text, limit=10, filter=''):
     st = time.time()
     inputs = clip.tokenize(text)
     with torch.no_grad():
         text_features = model.encode_text(inputs)[0].tolist()
         et = time.time()
-        rows, stats, = _search(client, table, 'embedding', text_features, limit=limit)
+        rows, stats, = _search(client, table, 'image_embedding', text_features, limit=limit, filter=filter)
         stats['generation_time'] = round(et - st, 3)
         return rows, stats
 
 
-def search_with_images(preprocess, device, client, model, table, image, limit=10):
+def search_with_images(client, model, table, image_url, limit=10, filter=''):
     st = time.time()
-    image = preprocess(Image.open(image)).unsqueeze(0).to(device)
+    image = preprocess(Image.open(image_url)).unsqueeze(0).to(device)
     with torch.no_grad():
         image_features = model.encode_image(image)[0].tolist()
         et = time.time()
-        rows, stats = _search(client, table, 'embedding', image_features, limit=limit)
+        rows, stats = _search(client, table, 'text_embedding', image_features, limit=limit, filter=filter)
         stats['generation_time'] = round(et - st, 3)
         return rows, stats
 
@@ -142,8 +142,7 @@ expr = infixNotation(
     ],
 )
 
-# if __name__ == '__main__':
-def return_file(search_parser, text, image, table, limit, filter=''):
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         prog='search',
         description='Search for matching images in the Laion dataset by either text or image')
@@ -151,64 +150,59 @@ def return_file(search_parser, text, image, table, limit, filter=''):
     client = clickhouse_connect.get_client(host=os.environ.get('CLICKHOUSE_HOST', 'localhost'),
                                            username=os.environ.get('CLICKHOUSE_USERNAME', 'default'),
                                            password=os.environ.get('CLICKHOUSE_PASSWORD', ''),
-                                           port=os.environ.get('CLICKHOUSE_PORT', 8123))
-                                        #    secure=True if os.environ.get('CLICKHOUSE_SSL', 'True') == 'True' else False)
-    # sub_parsers = parser.add_subparsers(dest='command')
-    
-    # search_parser = sub_parsers.add_parser('search', help='search using text or images') 
-    # search_parser_params = search_parser.add_mutually_exclusive_group(required=True)
-    # search_parser_params.add_argument('--text', required=False)
-    # search_parser_params.add_argument('--image', required=False)
+                                           port=os.environ.get('CLICKHOUSE_PORT', 8443),
+                                           secure=True if os.environ.get('CLICKHOUSE_SSL', 'True') == 'True' else False)
+    sub_parsers = parser.add_subparsers(dest='command')
 
-    # concept_parser = sub_parsers.add_parser('concept_math', help='blend two concepts from images')
-    # concept_parser.add_argument('--text', required=True)
+    search_parser = sub_parsers.add_parser('search', help='search using text or images')
+    search_parser_params = search_parser.add_mutually_exclusive_group(required=True)
+    search_parser_params.add_argument('--text', required=False)
+    search_parser_params.add_argument('--image', required=False)
 
-    # search_parser.add_argument('--table', default='laion_100m')
-    # search_parser.add_argument('--limit', default=10)
-    # search_parser.add_argument('--filter', required=False, default='')
+    concept_parser = sub_parsers.add_parser('concept_math', help='blend two concepts from images')
+    concept_parser.add_argument('--text', required=True)
 
-    # concept_parser.add_argument('--table', default='laion_100m')
-    # concept_parser.add_argument('--limit', default=10)
-    # concept_parser.add_argument('--filter', required=False, default='')
-    # args = parser.parse_args()
-    print('Execution started')
-    command = search_parser
-    text = text
-    image = image
-    table = table
-    limit = limit
-    filter = filter
+    search_parser.add_argument('--table', default='laion_100m')
+    search_parser.add_argument('--limit', default=10)
+    search_parser.add_argument('--filter', required=False, default='')
+
+    concept_parser.add_argument('--table', default='laion_100m')
+    concept_parser.add_argument('--limit', default=10)
+    concept_parser.add_argument('--filter', required=False, default='')
+    args = parser.parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
-    model, preprocess = clip.load("ViT-B/32")
+    model, preprocess = clip.load("ViT-L/14")
     model.to(device)
     images = []
     stats = {}
-    if command == 'search':
-        if text != '' and text is not None:
-            text = text
-            images, stats = search_with_text(client, model, table, text, limit=limit ) #filter
+    text = None
+    image = None
+    if args.command == 'search':
+        if args.text:
+            text = args.text
+            images, stats = search_with_text(client, model, args.table, text, limit=args.limit, filter=args.filter)
         else:
-            image = image
-            images, stats = search_with_images(preprocess, device, client, model, table, image, limit=limit)
-    elif command == 'concept_math':
-        text = text
-        concepts = expr.parseString(text)
-        images, stats = text_inflix_expression_to_vector(client, model, table, concepts, limit=limit)
+            image = args.image
+            images, stats = search_with_images(client, model, args.table, image, limit=args.limit, filter=args.filter)
+    elif args.command == 'concept_math':
+        text = args.text
+        concepts = expr.parseString(args.text)
+        images, stats = text_inflix_expression_to_vector(client, model, args.table, concepts, limit=args.limit)
 
-    # filename = f"results_{int(time.time())}.html"
-
-    return {
+    environment = Environment(loader=FileSystemLoader("templates/"))
+    template = environment.get_template("results.html")
+    filename = f"results_{int(time.time())}.html"
+    context = {
         "images": images,
-        "table": table,
+        "table": args.table,
         "text": text,
         "source_image": image,
         "gen_time": stats['generation_time'],
         "query_time": stats['query_time'],
     }
-
-    # with open(filename, mode="w", encoding="utf-8") as message:
-    #     message.write(template.render(context))
-    # file_link = f"file://{os.path.join(os.getcwd(), filename)}"
-    # print(link(file_link))
-    # webbrowser.open_new(file_link)
+    with open(filename, mode="w", encoding="utf-8") as message:
+        message.write(template.render(context))
+    file_link = f"file://{os.path.join(os.getcwd(), filename)}"
+    print(link(file_link))
+    webbrowser.open_new(file_link)
