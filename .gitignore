@@ -16,7 +16,7 @@ metadata_dropped*
 output.jsonl*
 output.txt*
 preprocessed_configs*
-store*
 tmp*
 user_files*
 uuid*
+.DS_Store

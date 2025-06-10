@@ -13,19 +13,23 @@ client = clickhouse_connect.get_client(host=os.environ.get('CLICKHOUSE_HOST', 'l
 basedir = os.path.abspath(os.path.dirname(__file__))
 app = Flask(__name__, static_folder='/Volumes/T7/photos_from_icloud')
 app.jinja_env.globals.update(unquote=unquote)
-@app.route("/clear_cookies")
-def clear_cookies():
-    response = make_response(redirect(url_for("home")))
-    for cookie in request.cookies:
-        response.delete_cookie(cookie)
-    return response
+# @app.route("/clear_cookies")
+# def clear_cookies():
+#     response = make_response(redirect(url_for("home")))
+#     for cookie in request.cookies:
+#         response.delete_cookie(cookie)
+#     return response
 @app.route('/files/<path:filename>')
 def serve_file(filename):
     decoded_filename = unquote(filename)
     decoded_filename = decoded_filename.replace('Volumes/T7/photos_from_icloud/', '')
     print(decoded_filename)
     return send_from_directory('/Volumes/T7/photos_from_icloud', decoded_filename)
-# @app.route('/delete_photo', methods=['POST'])
+@app.route('/delete_photo', methods=['POST'])
+def delete_photo(file_id):
+    pass
+    # print(f"delete_file called with file_id: {file_id}")
+    # Logic to delete the file
 # def delete_photo():
 #     text = request.form.get('search', '')
 #     image_path = request.form.get('image_path')  
@@ -71,16 +75,18 @@ def home(text=None, image=None):
         if text != 'reset' and text != '':
             context = search.return_file('search', text=text, image=None, table='photos_db', limit=200, filter=None)
             return render_template("results.html", **context)
-        elif text == 'reset' or text is None:
-            return render_template("results.html")
+        # elif text == 'reset' or text is None:
+        #     return render_template("results.html")
 
         elif uploaded_image != '' and uploaded_image.filename:
             context = search.return_file('search', text=None, image=temp_path, table='photos_db', limit=200, filter=None)
             return render_template("results.html", **context)
     except Exception as e:   
         print(e)
+        print('1')
         return render_template("results.html")
     return render_template("results.html")
 
 if __name__ == '__main__':
     app.run(debug=True)
+    print(app.url_map)
