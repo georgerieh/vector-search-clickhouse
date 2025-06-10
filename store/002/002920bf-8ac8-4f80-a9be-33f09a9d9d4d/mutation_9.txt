@@ -1,3 +1,0 @@
-format version: 1
-create time: 2025-05-17 13:34:55
-commands: (UPDATE _row_exists = 0 WHERE path = \'\')
