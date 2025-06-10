@@ -204,10 +204,10 @@
 					<em>Score: {{ image.score }} 
 					{{ image.path }}</em>
 				</p>
-				<form action="{{ url_for('delete_photo') }}" method="post">
+				<!-- <form action="{{ url_for('delete_photo') }}" method="post">
 					<input type="hidden" name="image_path" value="{{ image.path }}">
 					<button type="submit" class="delete-button">Delete</button>
-				</form>
+				</form> -->
 				<!-- <form action="/" method="post">
 					<input type="hidden" name="file_path" value="{{ image.url }}">
 					<button name="delete" type="submit">delete</button>

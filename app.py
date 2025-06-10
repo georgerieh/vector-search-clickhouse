@@ -13,12 +13,12 @@ client = clickhouse_connect.get_client(host=os.environ.get('CLICKHOUSE_HOST', 'l
 basedir = os.path.abspath(os.path.dirname(__file__))
 app = Flask(__name__, static_folder='/Volumes/T7/photos_from_icloud')
 app.jinja_env.globals.update(unquote=unquote)
-@app.route("/clear_cookies")
-def clear_cookies():
-    response = make_response(redirect(url_for("home")))
-    for cookie in request.cookies:
-        response.delete_cookie(cookie)
-    return response
+# @app.route("/clear_cookies")
+# def clear_cookies():
+#     response = make_response(redirect(url_for("home")))
+#     for cookie in request.cookies:
+#         response.delete_cookie(cookie)
+#     return response
 @app.route('/files/<path:filename>')
 def serve_file(filename):
     decoded_filename = unquote(filename)

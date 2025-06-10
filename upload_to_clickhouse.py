@@ -21,7 +21,7 @@ df = df_combined
 df = df.loc[:,~df.columns.duplicated()].copy()
 
 client = clickhouse_connect.get_client(host='localhost', port=8123, username='default', password='')
-# client.command('''DROP TABLE IF EXISTS photos_db;''')
+client.command('''DROP TABLE IF EXISTS photos_db;''')
 client.command('''
 CREATE TABLE photos_db (
     filename String,

@@ -1,4 +1,4 @@
-ATTACH TABLE _ UUID '002920bf-8ac8-4f80-a9be-33f09a9d9d4d'
+ATTACH TABLE _ UUID 'e01411d2-8bf0-4e24-bab6-09509c4ac972'
 (
     `filename` String,
     `file` Nullable(String),
