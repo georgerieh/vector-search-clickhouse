@@ -1,0 +1,12 @@
+columns format version: 1
+10 columns:
+`filename` String
+`file` Nullable(String)
+`subfolder` Nullable(String)
+`some_column` Nullable(String)
+`height` Nullable(UInt32)
+`width` Nullable(UInt32)
+`location` Nullable(String)
+`text` Nullable(String)
+`embedding` Array(Float32)
+`path` Nullable(String)
