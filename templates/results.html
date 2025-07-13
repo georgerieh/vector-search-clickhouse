@@ -6,8 +6,17 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+	<script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/Leaflet.fullscreen.min.js'></script>
+	<link href='https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/leaflet.fullscreen.css' rel='stylesheet' />
+    <!-- <script src="https://cdn.maptiler.com/maptiler-sdk-js/v3.5.0/maptiler-sdk.umd.min.js"></script>
+    <link href="https://cdn.maptiler.com/maptiler-sdk-js/v3.5.0/maptiler-sdk.css" rel="stylesheet" />
+    <script src="https://cdn.maptiler.com/leaflet-maptilersdk/v4.1.0/leaflet-maptilersdk.umd.min.js"></script> -->
+	<script
+       src="http://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js">
+    </script>
     <meta charset="utf-8">
-    <title>ClickSearch: Results for search image</title>
+    <title>ClickSearch: Results for search image. Fork by Georg Riekhakainen (georgerieh)</title>
     <style>
 			html {
 				background: #151515 linear-gradient(101.54deg, #151515 0.61%, #1D1D1D 96.74%);
@@ -20,13 +29,16 @@
 				margin: 0;
 			}
 			#map-container {
-				position: absolute; /* Keeps the map fixed on the screen */
-				/* top: 0;          Align to the top of the page */
-				/* left: 0;         Align to the left of the page */
-				width: 100%;     /* Full width of the page */
-				/* height: 300px;   Adjust the height as needed */
-				/* z-index: 1000;   Ensure it stays above other elements */
+			width: 100%;
+			height: 300px; /* set fixed height or flexible */
+			box-sizing: border-box;
+			/* No absolute positioning */
 			}
+
+			#map {
+			width: 100%;
+			height: 100%;
+}
 			.container {
 				display: flex;
 				flex-direction: column;
@@ -82,19 +94,14 @@
 				width: 140px;
 				color: #fcff74;
 			}
-			table {
-			width: 100%; /* Ensure the table takes the full width of the container */
-			table-layout: fixed; /* Prevent the table from collapsing */
-			}
-
 			#map {
 				height: 400px; /* Set the height of the map */
-				width: 100%;   /* Allow the map to take the full width of the cell */
+				/* width: 50% ;   Allow the map to take the full width of the cell */
 			}
 
-			td#map {
+			/* td#map {
 				padding: 0; /* Remove any padding from the <td> */
-			}
+			/* } */ 
 			.grid {
 				display: flex;
 				flex-wrap: wrap;
@@ -103,7 +110,7 @@
 			}
 
 			.grid-item {
-				padding: 16px 24px;
+				/* padding: 16px 24px; */
 				max-width: 240px;
 				display: flex;
 				flex-direction: column;
@@ -174,6 +181,17 @@
 					margin: 0 auto;
 				}
 			}
+			table {
+				width: 100%;
+				table-layout: fixed;
+				border-collapse: separate;
+				border-spacing: 24px; /* This adds spacing between your td blocks */
+			}
+
+			td {
+				padding: 24px;
+				vertical-align: top;
+			}
     </style>
 </head>
 <body>
@@ -188,17 +206,20 @@
 				<path d="M57.25 51.25L51.4925 45.4925" stroke="white" stroke-width="2.625" stroke-linecap="round" stroke-linejoin="round"/>
 				</svg>
 				{% if text %}
-				<h2>Results for:  <em>"{{ text }}"</em></h2>
+				<h2>Fork by Georg Riekhakainen<br>Results for:  <em>"{{ text }}"</em></h2>
 				{% else %}
-                <div class="grid-item">
-					<h2>Results for:</h2>
-                    <img src="{{ url_for('serve_file', filename=source_image | urlencode) }}"/>
-                </div>
+				{% if source_image %}
+					<div class="grid-item">
+						<h2>Results for:</h2>
+						<img src="{{ url_for('serve_file', filename=source_image | urlencode) }}"/>
+					</div>
+				{% endif %}
 				{% endif %}
 				</div>
 				<div class='section'>
 				<form action="/" method="post" enctype="multipart/form-data">
-					<input type="text" id="search" name="search" placeholder="Search..."">
+					<input type="text" id="search" name="search_text" placeholder="Search..."" value="{{ search_text }}">
+					<input type="text" id="limit" name="limit" placeholder="How many?"">
 					<input type="file" id="image-in" name="image" accept="image/*">
 
 					<button name="forwardBtn" type="submit">Look up</button>
@@ -235,29 +256,20 @@
 				<img src="{{ url_for('serve_file', filename=image.url | urlencode) }}" style="width: 300px; height: auto;"> 				
 				<p>
 					<em>Score: {{ image.score }}</em>
-					<!-- {{ image.path }}</em> -->
 				</p>
-				<form method="post" action="{{ url_for('delete_photo') }}">
+				<form method="post" action="{{ url_for('delete_photo') }}" enctype="multipart/form-data">
 					<input type="hidden" name="image_path" value="{{ image.url }}">
-					<input type="hidden" name="search" value="{{ request.args.get('search', '') }}">
+					<input type="hidden" name="search_text" value="{{ request.args.get('search_text', '') }}">
 					<button type="submit">Delete</button>
 				</form>
-				<!-- <form action="{{ url_for('delete_photo') }}" method="post">
-					<input type="hidden" name="image_path" value="{{ image.path }}">
-					<button type="submit" class="delete-button">Delete</button>
-				</form> -->
-				<!-- <form action="/" method="post">
-					<input type="hidden" name="file_path" value="{{ image.url }}">
-					<button name="delete" type="submit">delete</button>
-				</form>		 -->
             </div>
             {% endfor %}
 		</td>
-		<td id="map-container">
+		<td id="map-container" style="vertical-align: top;">
 			<div id="map">
 			<script>
 				{% if images is not undefined %}
-					const map = L.map('map').setView([48.505, 2.33], 5);
+					const map = L.map('map', { fullscreenControl: true }).setView([48.505, 2.33], 3);
 					L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 						maxZoom: 16,
 						attribution: '© OpenStreetMap contributors'
@@ -269,9 +281,15 @@
 							const marker = L.geoJSON(geojson).addTo(map);
 							marker.bindPopup(`<img src="{{ url_for('serve_file', filename='') }}${image.url}" style="width: 150px; height: auto;">`);
 
-							// marker.bindPopup(`<img src="${image.url}"  style="width: 300px; height: auto;">`);
 						}
 					});
+					const heatPoints = images.filter(image => image.caption).map(image => {
+						const geojson = JSON.parse(image.caption);
+						const coords = geojson.geometry.coordinates; // [lng, lat]
+						return [coords[1], coords[0], 1];
+					});
+
+				const heat = L.heatLayer(heatPoints, { radius: 25, blur: 15 }).addTo(map);
 				{% endif %}
 				</script>
 				</div>

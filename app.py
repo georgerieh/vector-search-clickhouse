@@ -12,6 +12,7 @@ client = clickhouse_connect.get_client(host=os.environ.get('CLICKHOUSE_HOST', 'l
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 app = Flask(__name__, static_folder='/Volumes/T7/photos_from_icloud')
+app.secret_key = "secret"
 app.jinja_env.globals.update(unquote=unquote)
 # @app.route("/clear_cookies")
 # def clear_cookies():
@@ -28,8 +29,8 @@ def serve_file(filename):
 
 @app.route('/delete_photo', methods=['POST'])
 def delete_photo():
-    image_path = request.form.get('image_path')  
-    search = request.form.get('search', '')
+    image_path = request.form.get('image_path') 
+    search_text = request.form.get("search") or request.args.get("search") or ""
 
     try:
         # Delete from DB
@@ -43,55 +44,50 @@ def delete_photo():
     except Exception as e:
         print(f"Error deleting photo: {e}")
 
-    # Redirect with current search parameter
-    return redirect(url_for("home", search=search))
+    print(search_text)
+    return redirect(url_for("home", search_text=search_text))
 @app.route("/", methods=['GET','POST'])
-def home(text=None, image=None):
-    # new_file = None
-    # text = 'city busy centre'
-    # uploaded_image = 'hhdehh'
-    # text = request.form.get('search', '')
-    # uploaded_image = request.files.get('image', '')
-    # if uploaded_image != '':
-    #     try:
-    #         temp_path = "/Volumes/T7/photos_from_icloud/tmp/" + uploaded_image.filename
-    #         uploaded_image.save(temp_path)
-    #         print(f"Saved image to {temp_path}")
-    #     except Exception as e:
-    #         print(f"Error: {e}")
-    search = request.args.get('search', '')
-    image = request.args.get('image', '')
-
+def home(search_text=""):
+    
+    uploaded_image = None
+    saved_image_path = None
+    try: search_text = search_text
+    except: search_text = request.form.get("search_text")
+    limit = request.form.get('limit', 50, type=int)
     if request.method == 'POST':
+        session["search_text"] = request.form.get("search_text", "")
         uploaded_image = request.files.get('image')
+
         if uploaded_image and uploaded_image.filename != '':
             try:
-                temp_path = os.path.join("/Volumes/T7/photos_from_icloud/tmp", uploaded_image.filename)
-                uploaded_image.save(temp_path)
-                print(f"Saved image to {temp_path}")
-                image = uploaded_image.filename
+                saved_image_path = os.path.join("/Volumes/T7/photos_from_icloud/tmp", uploaded_image.filename)
+                uploaded_image.save(saved_image_path)
+                print(f"Saved image to {saved_image_path}")
             except Exception as e:
-                print(f"Error: {e}")
-    else:
-        uploaded_image = None
+                print(f"Error saving image: {e}")
+    search_text = session.get("search_text", "")
     environment = Environment(loader=FileSystemLoader("templates/"))
     template = environment.get_template("results.html")
+
     try:
-        if text != 'reset' and text != '':
-            context = search.return_file('search', text=text, image=None, table='photos_db', limit=50, filter=None)
+        if search_text and search_text != 'reset':
+            context = search.return_file(
+                'search', text=search_text, image=None,
+                table='photos_db', limit=limit, filter=None
+            )
             return render_template("results.html", **context)
-        # elif text == 'reset' or text is None:
-        #     return render_template("results.html")
 
-        elif uploaded_image != '' and uploaded_image.filename:
-            context = search.return_file('search', text=None, image=temp_path, table='photos_db', limit=50, filter=None)
+        if saved_image_path:
+            context = search.return_file(
+                'search', text=None, image=saved_image_path,
+                table='photos_db', limit=limit, filter=None
+            )
             return render_template("results.html", **context)
-    except Exception as e:   
-        print(e)
-        print('1')
+    except Exception as e:
+        print(f"Error during search: {e}")
         return render_template("results.html")
-    return render_template("results.html")
 
+    return render_template("results.html")
 if __name__ == '__main__':
     app.run(debug=True)
     print(app.url_map)

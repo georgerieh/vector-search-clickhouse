@@ -36,7 +36,8 @@ def _search(client, table, column, features, limit=10, filter=''):
     return rows, {'read_rows': result.summary['read_rows'], 'query_time': round(et - st, 3)}
 
 
-def search_with_text(client, model, table, text, limit=10):
+def search_with_text(client, model, table, text, limit):
+    limit = limit if limit is not None else 50
     st = time.time()
     inputs = clip.tokenize(text)
     with torch.no_grad():
@@ -47,13 +48,17 @@ def search_with_text(client, model, table, text, limit=10):
         return rows, stats
 
 
-def search_with_images(preprocess, device, client, model, table, image, limit=10):
+def search_with_images(preprocess, device, client, model, table, image, limit):
     st = time.time()
     image = preprocess(Image.open(image)).unsqueeze(0).to(device)
+    print("preprocess successful")
     with torch.no_grad():
         image_features = model.encode_image(image)[0].tolist()
+        print("features successful")
         et = time.time()
+        print("limit", limit)
         rows, stats = _search(client, table, 'embedding', image_features, limit=limit)
+        print("search successful")
         stats['generation_time'] = round(et - st, 3)
         return rows, stats
 
@@ -177,7 +182,7 @@ def return_file(search_parser, text, image, table, limit, filter=''):
     text = text
     image = image
     table = table
-    limit = limit
+    limit = limit if limit is not None else 50
     filter = filter
     device = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
@@ -192,20 +197,16 @@ def return_file(search_parser, text, image, table, limit, filter=''):
         else:
             image = image
             images, stats = search_with_images(preprocess, device, client, model, table, image, limit=limit)
-    elif command == 'concept_math':
-        text = text
-        concepts = expr.parseString(text)
-        images, stats = text_inflix_expression_to_vector(client, model, table, concepts, limit=limit)
-
     # filename = f"results_{int(time.time())}.html"
 
-    return {
-        "image": image.url,
+    output = {
         "images": images,
         "table": table,
-        "text": text,
+        "search_text": text,
         "source_image": image,
         "gen_time": stats['generation_time'],
         "query_time": stats['query_time'],
     }
+    return output
+
 
