@@ -33,7 +33,9 @@ CREATE TABLE photos_db (
     location Nullable(String), 
     text Nullable(String),
     embedding Array(Float32),
-    path Nullable(String)
+    path Nullable(String),
+    lat Nullable(Float32),
+    lon Nullable(Float32)
 ) ENGINE = MergeTree()
 ORDER BY filename;
 ''')

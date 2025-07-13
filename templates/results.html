@@ -1,6 +1,11 @@
 
 <html lang="en">
 <head>
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <meta charset="utf-8">
     <title>ClickSearch: Results for search image</title>
     <style>
@@ -13,6 +18,14 @@
 			}
 			body {
 				margin: 0;
+			}
+			#map-container {
+				position: absolute; /* Keeps the map fixed on the screen */
+				/* top: 0;          Align to the top of the page */
+				/* left: 0;         Align to the left of the page */
+				width: 100%;     /* Full width of the page */
+				/* height: 300px;   Adjust the height as needed */
+				/* z-index: 1000;   Ensure it stays above other elements */
 			}
 			.container {
 				display: flex;
@@ -69,7 +82,19 @@
 				width: 140px;
 				color: #fcff74;
 			}
+			table {
+			width: 100%; /* Ensure the table takes the full width of the container */
+			table-layout: fixed; /* Prevent the table from collapsing */
+			}
 
+			#map {
+				height: 400px; /* Set the height of the map */
+				width: 100%;   /* Allow the map to take the full width of the cell */
+			}
+
+			td#map {
+				padding: 0; /* Remove any padding from the <td> */
+			}
 			.grid {
 				display: flex;
 				flex-wrap: wrap;
@@ -174,7 +199,7 @@
 				<div class='section'>
 				<form action="/" method="post" enctype="multipart/form-data">
 					<input type="text" id="search" name="search" placeholder="Search..."">
-					<input type="file" id="image" name="image" accept="image/*">
+					<input type="file" id="image-in" name="image" accept="image/*">
 
 					<button name="forwardBtn" type="submit">Look up</button>
 				</form>				
@@ -197,23 +222,63 @@
 
 	<div class='container'>
 		<div class='grid'>
+			<table>
+			<thead>
+				<th></th>
+				<th></th>
+			</thead>
+			<tbody>
+				<tr>
+					<td>
             {% for image in images %}
             <div class="grid-item">
 				<img src="{{ url_for('serve_file', filename=image.url | urlencode) }}" style="width: 300px; height: auto;"> 				
 				<p>
-					<em>Score: {{ image.score }} 
-					{{ image.path }}</em>
+					<em>Score: {{ image.score }}</em>
+					<!-- {{ image.path }}</em> -->
 				</p>
-				<form action="{{ url_for('delete_photo') }}" method="post">
+				<form method="post" action="{{ url_for('delete_photo') }}">
+					<input type="hidden" name="image_path" value="{{ image.url }}">
+					<input type="hidden" name="search" value="{{ request.args.get('search', '') }}">
+					<button type="submit">Delete</button>
+				</form>
+				<!-- <form action="{{ url_for('delete_photo') }}" method="post">
 					<input type="hidden" name="image_path" value="{{ image.path }}">
 					<button type="submit" class="delete-button">Delete</button>
-				</form>
+				</form> -->
 				<!-- <form action="/" method="post">
 					<input type="hidden" name="file_path" value="{{ image.url }}">
 					<button name="delete" type="submit">delete</button>
 				</form>		 -->
             </div>
             {% endfor %}
+		</td>
+		<td id="map-container">
+			<div id="map">
+			<script>
+				{% if images is not undefined %}
+					const map = L.map('map').setView([48.505, 2.33], 5);
+					L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+						maxZoom: 16,
+						attribution: '© OpenStreetMap contributors'
+					}).addTo(map);
+					const images = {{ images | tojson }};
+					images.forEach(image => {
+						if (image.caption) {
+							const geojson = JSON.parse(image.caption);
+							const marker = L.geoJSON(geojson).addTo(map);
+							marker.bindPopup(`<img src="{{ url_for('serve_file', filename='') }}${image.url}" style="width: 150px; height: auto;">`);
+
+							// marker.bindPopup(`<img src="${image.url}"  style="width: 300px; height: auto;">`);
+						}
+					});
+				{% endif %}
+				</script>
+				</div>
+		</td>
+		</tr>
+		</tbody>
+		</table>
 		</div>
 	</div>
 
