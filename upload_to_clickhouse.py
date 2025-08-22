@@ -27,7 +27,7 @@ CREATE TABLE photos_db (
     filename String,
     file Nullable(String),
     subfolder Nullable(String),
-    some_column Nullable(String),
+    date Nullable(String),
     height Nullable(UInt32),
     width Nullable(UInt32),
     location Nullable(String), 
