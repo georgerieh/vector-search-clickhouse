@@ -264,9 +264,12 @@
 	<div class='container'>
 		<div class='grid'>
 			<form>
-			<input type="hidden" id="search" name="search_text" value="{{ search_text }}">
-			<input type="hidden" id ="image-in" name="image" value="{{ saved_image_path }}">
-
+				{% if saved_image_path %}
+			  		<input type="hidden" name="image" value="{{ saved_image_path }}">
+				{% endif %}
+				{% if search_text %}
+  					<input type="hidden" name="image" value="{{ search_text }}">
+				{% endif %}
 			<button type="submit">Delete Selected</button>
 			<table>
 				<thead>
