@@ -41,13 +41,10 @@ def delete_photo():
     # Redirect back to search
     return redirect(url_for("home", search_text=search_text))
 @app.route("/", methods=['GET','POST'])
-def home(search_text=""):
+def home(search_text=''):
     uploaded_image = None
     saved_image_path = None
-    try:
-        search_text = search_text
-    except:
-        search_text = request.form.get("search_text")
+    search_text = request.form.get("search_text", '')
     limit = request.form.get('limit', 50, type=int)
     if request.method == 'POST':
         session["search_text"] = request.form.get("search_text", "")
