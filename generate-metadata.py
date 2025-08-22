@@ -33,8 +33,8 @@ def get_location(exif_data):
         lon = gps_to_decimal(exif_data["GPSLongitude"])
         lat = gps_to_decimal(exif_data["GPSLatitude"])
         if lon is not None and lat is not None:
-            return {"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]}}
-    return ''
+            return [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]}}, lat, lon]
+    return ['', 0.0, 0.0]
 
 def get_text_from_image(file_path):
     try:
@@ -65,7 +65,9 @@ def parse_exiftool_json(json_data):
             height,
             width,
             json.dumps(location) if location else '',
-            get_text_from_image(path)
+            get_text_from_image(path),
+            lat,
+            lon
         ]
         yield row
 
