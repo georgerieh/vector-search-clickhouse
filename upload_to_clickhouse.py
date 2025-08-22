@@ -7,7 +7,7 @@ data =[]
 with open ('/Volumes/T7/photos_from_icloud-out/metadata.jsonl') as f:
     for line in f:
         data.append(json.loads(line))
-df1=pd.DataFrame(data, columns=['filename', 'file', 'subfolder','some_column', 'height', 'width','location','text'])
+df1=pd.DataFrame(data, columns=['filename', 'file', 'subfolder','date', 'height', 'width','location','text'])
 data =[]
 with open ('/Volumes/T7/photos_from_icloud-out/output.jsonl') as f:
     for line in f:
