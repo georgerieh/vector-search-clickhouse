@@ -26,7 +26,7 @@ def gps_to_decimal(gps_str):
         direction = parts[4]
         return dms_to_decimal(deg, minutes, seconds, direction)
     except Exception:
-        return None
+        return ''
 
 def get_location(exif_data):
     if "GPSLongitude" in exif_data and "GPSLatitude" in exif_data:
@@ -34,7 +34,7 @@ def get_location(exif_data):
         lat = gps_to_decimal(exif_data["GPSLatitude"])
         if lon is not None and lat is not None:
             return {"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]}}
-    return None
+    return ''
 
 def get_text_from_image(file_path):
     try:
@@ -53,7 +53,7 @@ def parse_exiftool_json(json_data):
         file_name = path.name
 
         location = get_location(item)
-        created_date = item.get("CreateDate", "").split(" ")[0] if "CreateDate" in item else None
+        created_date = item.get("CreateDate", "").split(" ")[0] if "CreateDate" in item else ''
         height = item.get("ExifImageHeight")
         width = item.get("ExifImageWidth")
 
@@ -64,7 +64,7 @@ def parse_exiftool_json(json_data):
             created_date,
             height,
             width,
-            location,
+            json.dumps(location) if location else '',
             get_text_from_image(path)
         ]
         yield row
