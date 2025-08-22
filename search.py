@@ -191,22 +191,21 @@ def return_file(search_parser, text, image, table, limit, filter=''):
     images = []
     stats = {}
     if command == 'search':
-        if text != '' and text is not None:
-            text = text
-            images, stats = search_with_text(client, model, table, text, limit=limit ) #filter
-        else:
-            image = image
+        if text:
+            images, stats = search_with_text(client, model, table, text, limit=limit )
+        elif image:
             images, stats = search_with_images(preprocess, device, client, model, table, image, limit=limit)
+            
     # filename = f"results_{int(time.time())}.html"
 
     output = {
-        "images": images,
-        "table": table,
-        "search_text": text,
-        "source_image": image,
-        "gen_time": stats['generation_time'],
-        "query_time": stats['query_time'],
-    }
+    "images": images,
+    "table": table,
+    "search_text": text,
+    "source_image": image,
+    "gen_time": stats.get('generation_time', 0),
+    "query_time": stats.get('query_time', 0),
+}
     return output
 
 
