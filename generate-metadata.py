@@ -6,112 +6,87 @@ import subprocess
 from PIL import Image
 import clip
 import torch
-import os
-import shutil
 from pathlib import Path
 import subprocess
 import numpy as np
 data = []
 import pytesseract
-def was_taken(file_path):
-    try:
-        result = subprocess.run(
-            ['exiftool', '-Make', str(file_path)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True
-        )
-        return result.stdout.strip().split(':')[-1].strip() 
-    except Exception:
-        return False
-    
-def created(file_path):
-    try:
-        result = subprocess.run(
-            ['exiftool', '-CreateDate', str(file_path)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True
-        )
-        return result.stdout.strip().split(':')[-1].strip() 
-    except Exception:
-        return False
-def height(file_path):
-    try:
-        result = subprocess.run(
-            ['exiftool', '-ExifImageHeight', str(file_path)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True
-        )
-        return result.stdout.strip().split(':')[-1].strip() 
-    except Exception:
-        return False
-def width(file_path):
-    try:
-        result = subprocess.run(
-            ['exiftool', '-ExifImageWidth', str(file_path)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True
-        )
-        return result.stdout.strip().split(':')[-1].strip() 
-    except Exception:
-        return False
-    
 def dms_to_decimal(degrees, minutes, seconds, direction):
     decimal = degrees + (minutes / 60) + (seconds / 3600)
     if direction in ['S', 'W']:
         decimal = -decimal
     return decimal
 
-def get_location(file_path):
+def gps_to_decimal(gps_str):
     try:
-        x = subprocess.run(
-            ['exiftool', '-GPSLongitude', str(file_path)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True
-        )
-        x = x.stdout.strip().split(':')[-1].strip()
-        x_degrees = dms_to_decimal(float(x.split()[0]), float(x.split()[2].replace("'", '')), float(x.split()[3].replace('"', '')), x.split()[4])
-        y = subprocess.run(
-            ['exiftool', '-GPSLatitude', str(file_path)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True
-        )
-        y = y.stdout.strip().split(':')[-1].strip()
-        y_degrees = dms_to_decimal(float(y.split()[0]), float(y.split()[2].replace("'", '')), float(y.split()[3].replace('"', '')), y.split()[4])
-
-
-        return json.dumps({
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [x_degrees, y_degrees]
-            }
-        })
+        parts = gps_str.split()
+        deg = float(parts[0])
+        minutes = float(parts[2].replace("'", ""))
+        seconds = float(parts[3].replace('"', ""))
+        direction = parts[4]
+        return dms_to_decimal(deg, minutes, seconds, direction)
     except Exception:
-        x = subprocess.run(
-            ['exiftool', '-GPSLongitude', str(file_path)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True
-        )
-        x = x.stdout.strip().split(':')[-1].strip()
-        print(file_path, x)
-        return ""
+        return ''
+
+def get_location(exif_data):
+    if "GPSLongitude" in exif_data and "GPSLatitude" in exif_data:
+        lon = gps_to_decimal(exif_data["GPSLongitude"])
+        lat = gps_to_decimal(exif_data["GPSLatitude"])
+        if lon is not None and lat is not None:
+            return [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]}}, lat, lon]
+    return ['', 0.0, 0.0]
+
 def get_text_from_image(file_path):
     try:
-        text = pytesseract.image_to_string(Image.open(file_path), lang='eng+rus')
-        return text
-    except Exception as e:
-        print(f'{e}, {file_path}')
+        return ' '.join(pytesseract.image_to_string(Image.open(file_path), lang='eng+rus').split())
+    except Exception:
         return ""
-batch_size = 64
-embeddings_buffer = []
-i = 0
+
+def parse_exiftool_json(json_data):
+    for item in json_data:
+        filename = os.path.basename(item.get("SourceFile", ""))
+        if filename.startswith("."):
+            continue  # skip dot-files
+
+        path = Path(item.get("SourceFile"))
+        subfolder = path.parent.name
+        file_name = path.name
+
+        location = get_location(item)
+        created_date = item.get("CreateDate", "").split(" ")[0] if "CreateDate" in item else ''
+        height = item.get("ExifImageHeight")
+        width = item.get("ExifImageWidth")
+
+        row = [
+            str(path.relative_to(path.parents[1])).replace(" ", "_"),  # relative path with subfolder
+            file_name,
+            subfolder,
+            created_date,
+            height,
+            width,
+            json.dumps(location) if location else '',
+            get_text_from_image(path),
+            lat,
+            lon
+        ]
+        yield row
+
+def run_exiftool(directory):
+
+    subprocess.run([
+        "exiftool",
+        "-r",  # recursive
+        "-Make", "-CreateDate", "-ExifImageHeight", "-ExifImageWidth",
+        "-GPSLongitude", "-GPSLatitude",
+        "-j",  # JSON output
+        directory
+    ], stdout=open(directory + '/output.json', "w"))
+
+def reorganize_to_jsonl(json_input, jsonl_output):
+    with open(json_input) as f, open(jsonl_output, "w") as out_f:
+        data = json.load(f)
+        for row in parse_exiftool_json(data):
+            out_f.write(json.dumps(row) + "\n")
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         prog='generate',
@@ -125,7 +100,7 @@ if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"using {device}")
     device = torch.device(device)
-    model, preprocess = clip.load("ViT-B/32", device=device)
+    # model, preprocess = clip.load("ViT-B/32", device=device)
     images = []
     if args.text:
         inputs = clip.tokenize(args.text).to(device)
@@ -151,20 +126,5 @@ if __name__ == '__main__':
         destination = Path(str(args.directory) + '-out')
         destination.mkdir(exist_ok=True)
         output_file_path = str(destination / 'metadata.jsonl')
-        for subfolder in base_folder.iterdir():
-            if subfolder.is_dir():
-                for file in subfolder.iterdir():
-                    if file.is_file():
-                        if file.name.startswith('.') or not ('jpeg' in file.name or 'jpg' in file.name) or not was_taken(file):
-                            continue
-                        embeddings_buffer.append([f'{str(subfolder.name).replace(" ", "_")}/{str(file.name)}', file.name, subfolder.name, created(file), height(file), width(file), get_location(file), ' '.join(get_text_from_image(file).split())])
-                        if len(embeddings_buffer) >= batch_size:
-                            with open(output_file_path, 'a') as outfile:
-                                for entry in embeddings_buffer:
-                                    json.dump(entry, outfile)
-                                    if i % 50 == 0:
-                                        print(f'Processed {i} images')
-                                        print(f'Last entry: {entry}')
-                                    i += 1
-                                    outfile.write('\n')
-                            embeddings_buffer = []
+        run_exiftool(directory=args.directory)
+        reorganize_to_jsonl(args.directory + '/output.json', args.directory + '-out/metadata.jsonl')

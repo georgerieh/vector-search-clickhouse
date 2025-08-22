@@ -1,25 +1,17 @@
-from flask import Flask, render_template, request, jsonify, Blueprint, flash, redirect, url_for, session, send_from_directory, make_response
 import os
-import search
-import subprocess
 from urllib.parse import unquote
-from jinja2 import FileSystemLoader, Environment
+from flask import Flask, render_template, request, redirect, url_for, session, send_from_directory
 import clickhouse_connect
+import search
 client = clickhouse_connect.get_client(host=os.environ.get('CLICKHOUSE_HOST', 'localhost'),
-                                           username=os.environ.get('CLICKHOUSE_USERNAME', 'default'),
-                                           password=os.environ.get('CLICKHOUSE_PASSWORD', ''),
-                                           port=os.environ.get('CLICKHOUSE_PORT', 8123))
+            username=os.environ.get('CLICKHOUSE_USERNAME', 'default'),
+            password=os.environ.get('CLICKHOUSE_PASSWORD', ''),
+            port=os.environ.get('CLICKHOUSE_PORT', 8123))
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 app = Flask(__name__, static_folder='/Volumes/T7/photos_from_icloud')
 app.secret_key = "secret"
 app.jinja_env.globals.update(unquote=unquote)
-# @app.route("/clear_cookies")
-# def clear_cookies():
-#     response = make_response(redirect(url_for("home")))
-#     for cookie in request.cookies:
-#         response.delete_cookie(cookie)
-#     return response
 @app.route('/files/<path:filename>')
 def serve_file(filename):
     decoded_filename = unquote(filename)
@@ -29,30 +21,30 @@ def serve_file(filename):
 
 @app.route('/delete_photo', methods=['POST'])
 def delete_photo():
-    image_path = request.form.get('image_path') 
+    image_paths = request.form.getlist('image_paths')  # multiple checkboxes
     search_text = request.form.get("search") or request.args.get("search") or ""
 
-    try:
-        # Delete from DB
-        query = f"DELETE FROM photos_db WHERE path = '{image_path}'"
-        client.command(query)
+    for image_path in image_paths:
+        try:
+            # Delete from DB (parameterised query safer)
+            client.command("ALTER TABLE photos_db DELETE WHERE path = %(path)s",
+                parameters={"path": image_path})
 
-        # Delete from filesystem
-        if os.path.exists(image_path):
-            os.remove(image_path)
-            print(f"Deleted file: {image_path}")
-    except Exception as e:
-        print(f"Error deleting photo: {e}")
+            # Delete from filesystem
+            if os.path.exists(image_path):
+                os.remove(image_path)
+                print(f"Deleted file: {image_path}")
 
-    print(search_text)
+        except Exception as e:
+            print(f"Error deleting {image_path}: {e}")
+
+    # Redirect back to search
     return redirect(url_for("home", search_text=search_text))
 @app.route("/", methods=['GET','POST'])
-def home(search_text=""):
-    
+def home(search_text=''):
     uploaded_image = None
     saved_image_path = None
-    try: search_text = search_text
-    except: search_text = request.form.get("search_text")
+    search_text = request.form.get("search_text", '')
     limit = request.form.get('limit', 50, type=int)
     if request.method == 'POST':
         session["search_text"] = request.form.get("search_text", "")
@@ -60,14 +52,13 @@ def home(search_text=""):
 
         if uploaded_image and uploaded_image.filename != '':
             try:
-                saved_image_path = os.path.join("/Volumes/T7/photos_from_icloud/tmp", uploaded_image.filename)
+                saved_image_path = os.path.join(
+                    "/Volumes/T7/photos_from_icloud/tmp", uploaded_image.filename)
                 uploaded_image.save(saved_image_path)
                 print(f"Saved image to {saved_image_path}")
             except Exception as e:
                 print(f"Error saving image: {e}")
     search_text = session.get("search_text", "")
-    environment = Environment(loader=FileSystemLoader("templates/"))
-    template = environment.get_template("results.html")
 
     try:
         if search_text and search_text != 'reset':
