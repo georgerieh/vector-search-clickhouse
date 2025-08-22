@@ -33,7 +33,7 @@ def created(file_path):
             stderr=subprocess.DEVNULL,
             text=True
         )
-        return result.stdout.strip().split(':')[-1].strip() 
+        return result.stdout.strip().split(' ')[0].strip() 
     except Exception:
         return False
 def height(file_path):
@@ -158,6 +158,8 @@ if __name__ == '__main__':
                         if file.name.startswith('.') or not ('jpeg' in file.name or 'jpg' in file.name) or not was_taken(file):
                             continue
                         embeddings_buffer.append([f'{str(subfolder.name).replace(" ", "_")}/{str(file.name)}', file.name, subfolder.name, created(file), height(file), width(file), get_location(file), ' '.join(get_text_from_image(file).split())])
+                        # embeddings_buffer.append([f'{str(subfolder.name).replace(" ", "_")}/{str(file.name)}', file.name, subfolder.name, created(file)])
+                        
                         if len(embeddings_buffer) >= batch_size:
                             with open(output_file_path, 'a') as outfile:
                                 for entry in embeddings_buffer:
