@@ -70,15 +70,6 @@ class Feature:
     vector: List[float]
 
 
-
-def link(uri, label=None):
-    if label is None:
-        label = uri
-    parameters = ''
-    escape_mask = '\033]8;{};{}\033\\{}\033]8;;\033\\'
-    return escape_mask.format(parameters, uri, label)
-
-
 def return_file(search_parser, text, image, table, limit):
     client = clickhouse_connect.get_client(
         host=os.environ.get('CLICKHOUSE_HOST', 'localhost'),
