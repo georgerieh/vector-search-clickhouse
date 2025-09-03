@@ -238,9 +238,9 @@
 			</div>
 			<div class='section'>
 				<form action="/" method="post" enctype="multipart/form-data">
-					<input type="text" id="search" name="search_text" placeholder="Search..."" value=" {{ search_text
+					<input type="text" id="search" name="search_text" placeholder="Search..." value=" {{ search_text
 						}}">
-					<input type="text" id="limit" name="limit" placeholder="How many?"">
+					<input type="text" id="limit" name="limit" placeholder="How many?">
 					<input type=" file" id="image-in" name="image" accept="image/*">
 
 					<button name="forwardBtn" type="submit">Look up</button>
@@ -261,69 +261,73 @@
 			</div>
 		</div>
 	</header>
-	<div class='container'>
-		<div class='grid'>
-			<form>
-				{% if saved_image_path %}
-			  		<input type="hidden" name="image" value="{{ saved_image_path }}">
-				{% endif %}
-				{% if search_text %}
-  					<input type="hidden" name="image" value="{{ search_text }}">
-				{% endif %}
-			<button type="submit">Delete Selected</button>
-			<table>
-				<thead>
-					<th></th>
-					<th></th>
-				</thead>
-				<tbody>
-					<tr>
-						<td>
-							{% for image in images %}
-							<div class="grid-item">
-								<img src="{{ url_for('serve_file', filename=image.url | urlencode) }}"
-									style="width: 300px; height: auto;">
-								<input type="checkbox" name="image_paths" value="{{ photo['path'] }}">
-								<p>
-									<em>Score: {{ image.score }}</em>
-							</div>
-							{% endfor %}
-						</td>
-						<td id="map-container" style="vertical-align: top;">
-							<div id="map">
-								<script>
-									{% if images is not undefined %}
-									const map = L.map('map', { fullscreenControl: true }).setView([48.505, 2.33], 3);
-									L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-										maxZoom: 16,
-										attribution: '© OpenStreetMap contributors'
-									}).addTo(map);
-									const images = {{ images | tojson }};
-									images.forEach(image => {
-										if (image.caption) {
-											const geojson = JSON.parse(image.caption);
-											const marker = L.geoJSON(geojson).addTo(map);
-											marker.bindPopup(`<img src="{{ url_for('serve_file', filename='') }}${image.url}" style="width: 150px; height: auto;">`);
+<div class='container'>
+    <div class='grid'>
+        <form method="POST" action="{{ url_for('delete_photo') }}">
+            <input type="hidden" name="search" value="{{ search_text }}">
 
-										}
-									});
-									const heatPoints = images.filter(image => image.caption).map(image => {
-										const geojson = JSON.parse(image.caption);
-										const coords = geojson.geometry.coordinates; // [lng, lat]
-										return [coords[1], coords[0], 1];
-									});
+            <table>
+                <thead>
+                    <th><input type="checkbox" id="select-all"></th>
+                </thead>
+                <tbody>
+                    <tr>
+                        {% for image in images %}
+                        <td>
+                            <div class="grid-item">
+                                <input type="checkbox" name="image_paths" value="{{ image.url }}">
+                                <img src="{{ url_for('serve_file', filename=image.url | urlencode) }}" style="width: 250px; height: auto;">
+                                <p><em>Score: {{ image.score }}</em></p>
+                            </div>
+                        </td>
+                        {% endfor %}
 
-									const heat = L.heatLayer(heatPoints, { radius: 25, blur: 15 }).addTo(map);
-									{% endif %}
-								</script>
-							</div>
-						</td>
-					</tr>
-				</tbody>
-			</table>
-			</form>
-		</div>
-	</div>
+                        <td id="map-container" style="vertical-align: top;">
+                            <div id="map">
+                                <script>
+                                    {% if images is not undefined %}
+                                    const map = L.map('map', { fullscreenControl: true }).setView([48.505, 2.33], 3);
+                                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                        maxZoom: 16,
+                                        attribution: '© OpenStreetMap contributors'
+                                    }).addTo(map);
+
+                                    const imagesData = {{ images | tojson }};
+                                    imagesData.forEach(image => {
+                                        if (image.caption) {
+                                            const geojson = JSON.parse(image.caption);
+                                            const marker = L.geoJSON(geojson).addTo(map);
+                                            marker.bindPopup(`<img src="{{ url_for('serve_file', filename='') }}${image.url}" style="width: 150px; height: auto;">`);
+                                        }
+                                    });
+
+                                    const heatPoints = imagesData.filter(image => image.caption).map(image => {
+                                        const geojson = JSON.parse(image.caption);
+                                        const coords = geojson.geometry.coordinates; // [lng, lat]
+                                        return [coords[1], coords[0], 1];
+                                    });
+                                    L.heatLayer(heatPoints, { radius: 25, blur: 15 }).addTo(map);
+                                    {% endif %}
+                                </script>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <button type="submit" id="deleteButton">Delete Selected</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    const selectAll = document.getElementById('select-all');
+    const checkboxes = document.querySelectorAll("input[name='image_paths']");
+
+    selectAll.addEventListener('change', () => {
+        checkboxes.forEach(cb => cb.checked = selectAll.checked);
+    });
+</script>
 
 	<footer class='footer-area'>
 		&copy; Copyright 2023 ClickHouse, Inc. HQ in the Bay Area, CA and Amsterdam, NL.

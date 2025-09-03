@@ -21,24 +21,29 @@ def serve_file(filename):
 
 @app.route('/delete_photo', methods=['POST'])
 def delete_photo():
-    image_paths = request.form.getlist('image_paths')  # multiple checkboxes
+    image_paths = request.form.getlist('image_paths')
     search_text = request.form.get("search") or request.args.get("search") or ""
 
+    if not image_paths:
+        return redirect(url_for("home", search_text=search_text))
+
+    try:
+        # Delete from DB in batch (faster than loop)
+        client.command("""
+            ALTER TABLE photos_db DELETE WHERE path IN %(paths)s
+        """, parameters={"paths": tuple(image_paths)})
+    except Exception as e:
+        print(f"DB deletion error: {e}")
+
+    # Delete from filesystem
     for image_path in image_paths:
         try:
-            # Delete from DB (parameterised query safer)
-            client.command("ALTER TABLE photos_db DELETE WHERE path = %(path)s",
-                parameters={"path": image_path})
-
-            # Delete from filesystem
             if os.path.exists(image_path):
                 os.remove(image_path)
                 print(f"Deleted file: {image_path}")
-
         except Exception as e:
             print(f"Error deleting {image_path}: {e}")
 
-    # Redirect back to search
     return redirect(url_for("home", search_text=search_text))
 @app.route("/", methods=['GET','POST'])
 def home(search_text=''):
