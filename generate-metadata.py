@@ -1,14 +1,15 @@
 #!/usr/bin/python3
 import argparse
-import time
 import json
+import os
 import subprocess
-from PIL import Image
+import time
+from pathlib import Path
+
 import clip
 import torch
-from pathlib import Path
-import subprocess
-import numpy as np
+from PIL import Image
+
 data = []
 import pytesseract
 def dms_to_decimal(degrees, minutes, seconds, direction):
@@ -52,7 +53,7 @@ def parse_exiftool_json(json_data):
         subfolder = path.parent.name
         file_name = path.name
 
-        location = get_location(item)
+        location, lat, lon = get_location(item)
         created_date = item.get("CreateDate", "").split(" ")[0] if "CreateDate" in item else ''
         height = item.get("ExifImageHeight")
         width = item.get("ExifImageWidth")
@@ -65,22 +66,28 @@ def parse_exiftool_json(json_data):
             height,
             width,
             json.dumps(location) if location else '',
-            get_text_from_image(path),
+            # get_text_from_image(path),
+            '',
             lat,
             lon
         ]
         yield row
 
 def run_exiftool(directory):
-
-    subprocess.run([
-        "exiftool",
-        "-r",  # recursive
-        "-Make", "-CreateDate", "-ExifImageHeight", "-ExifImageWidth",
-        "-GPSLongitude", "-GPSLatitude",
-        "-j",  # JSON output
-        directory
-    ], stdout=open(directory + '/output.json', "w"))
+    output_file = os.path.join(directory, 'output.json')
+    with open(output_file, "w") as f:
+        subprocess.run([
+            "exiftool",
+            "-r",  # recursive
+            "-Make",
+            "-CreateDate",
+            "-ExifImageHeight",
+            "-ExifImageWidth",
+            "-GPSLongitude",
+            "-GPSLatitude",
+            "-j",  # JSON output
+            directory
+        ], stdout=f)
 
 def reorganize_to_jsonl(json_input, jsonl_output):
     with open(json_input) as f, open(jsonl_output, "w") as out_f:

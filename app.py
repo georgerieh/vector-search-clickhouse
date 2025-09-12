@@ -1,4 +1,5 @@
 import os
+from time import sleep
 from urllib.parse import unquote
 
 import clickhouse_connect
@@ -36,86 +37,132 @@ def serve_file(filename):
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     return response
-
 @app.route('/delete_photo', methods=['POST'])
 def delete_photo():
-    # request.form.getlist('image_paths') will get all values from checked checkboxes
-    image_paths_to_delete = request.form.getlist('image_paths')
+    # Save form/session values
+    session['search_text'] = request.form.get('search_text', session.get('search_text', ''))
+    session['start_date'] = session.get('start_date', request.form.get('start_date', ''))
+    session['end_date'] = session.get('end_date', request.form.get('end_date', ''))
+    session['limit'] = session.get('limit', request.form.get('limit', 50, type=int))
 
+    image_paths_to_delete = request.form.getlist('image_paths')
     if not image_paths_to_delete:
         flash('No images selected for deletion.', 'warning')
-        return redirect(url_for('index'))
+        return redirect(url_for('home'))
 
     deleted_count = 0
-    for image_path in image_paths_to_delete:
+    for path in image_paths_to_delete:
+        full_path = os.path.join(BASE_DIR, path)
         try:
-            # Construct the full path to the image file
-            # IMPORTANT: Adjust this path to match where your images are actually stored
-            full_image_path = os.path.join('/Volumes/T7/photos_from_icloud/', image_path)  # Example path
-            if os.path.exists(full_image_path):
-                os.remove(full_image_path)
-                # You might also want to delete the image's entry from your database here
-                # e.g., db.session.query(Image).filter_by(url=image_path).delete()
-                # db.session.commit()
+            if os.path.exists(full_path):
+                os.remove(full_path)
                 deleted_count += 1
-            else:
-                print(f"Warning: Image not found at {full_image_path}")
         except Exception as e:
-            print(f"Error deleting {image_path}: {e}")
-            flash(f"Error deleting {image_path}: {e}", 'error')
+            flash(f'Error deleting file {path}: {e}', 'error')
+        try:
+            client.query(f"ALTER TABLE photos_db DELETE WHERE path = '{full_path}'")
+        except Exception as e:
+            print(f"Error deleting from ClickHouse: {e}")
 
-    if deleted_count > 0:
-        flash(f'Successfully deleted {deleted_count} image(s).', 'success')
-    else:
-        flash('No images were deleted.', 'info')
-
-    return redirect(url_for('index'))
+    flash(f'Successfully deleted {deleted_count} image(s).' if deleted_count else 'No images deleted.', 'info')
+    sleep(1)
+    # Instead of redirecting, call home() to render the results page
+    return redirect(url_for('home'))
 @app.route("/", methods=['GET','POST'])
-def home(search_text=''):
-    uploaded_image = None
-    saved_image_path = None
-    if request.method == 'POST':
-        uploaded_image = request.files.get('image')
-        form_search_text = request.form.get("search_text", "")
-        limit = request.form.get('limit', 50, type=int)
-        end_date = request.form.get('end_date', '')
-        start_date = request.form.get('start_date', '')
-        print('start_date', start_date)
+def home():
+    # --- Initialize session and local variables ---
+    session.setdefault('search_text', '')
+    search_text = session.get('search_text', request.form.get('search_text', ''))
+    start_date = session.get('start_date', request.form.get('start_date', ''))
+    end_date = session.get('end_date', request.form.get('end_date', ''))
+    limit = session.get('limit', request.form.get('limit', 50, type=int))
+    # session.setdefault('start_date', '')
+    # session.setdefault('end_date', '')
+    # session.setdefault('limit', 50)
 
+    uploaded_image = request.files.get('image')
+
+    saved_image_path = None
+
+    # --- Handle POST requests ---
+    if request.method == 'POST':
+
+        # Update session with current search/filter inputs
+        session['search_text'] = request.form.get('search_text', session['search_text'])
+        session['start_date'] = request.form.get('start_date', '')
+        session['end_date'] = request.form.get('end_date', '')
+        session['limit'] = request.form.get('limit', 50, type=int)
+
+        search_text = session['search_text']
+        start_date = session['start_date']
+        end_date = session['end_date']
+        limit = session['limit']
+        print(search_text, start_date, end_date, limit)
+        # --- Handle uploaded image ---
         if uploaded_image and uploaded_image.filename != '':
-            saved_image_path = os.path.join("/Volumes/T7/photos_from_icloud/tmp", uploaded_image.filename)
+            saved_image_path = os.path.join(BASE_DIR, 'tmp', uploaded_image.filename)
             uploaded_image.save(saved_image_path)
             context = search.return_file(
-                'search', text='', image=saved_image_path,
-                table='photos_db', limit=limit, filter_expr='', start_date=start_date,
+                'search',
+                text='',
+                image=saved_image_path,
+                table='photos_db',
+                limit=limit,
+                filter_expr='',
+                start_date=start_date,
                 end_date=end_date
             )
             return render_template("results.html", **context)
-        elif form_search_text:
-            session["search_text"] = form_search_text
+
+        # --- Handle text search ---
+        if search_text:
             context = search.return_file(
-                'search', text=form_search_text, image='',
-                table='photos_db', limit=limit, filter_expr='', start_date=start_date, end_date=''
+                'search',
+                text=search_text,
+                image='',
+                table='photos_db',
+                limit=limit,
+                filter_expr='',
+                start_date=start_date,
+                end_date=end_date
             )
             return render_template("results.html", **context)
-        elif start_date:
-            print('executing startdate search')
-            context = search.return_file('search', text='', image='', table='photos_db', limit=limit, filter_expr='',
-                                         start_date=start_date, end_date=end_date)
+
+        # --- Handle date filter only ---
+        if start_date or end_date:
+            context = search.return_file(
+                'search',
+                text='',
+                image='',
+                table='photos_db',
+                limit=limit,
+                filter_expr='',
+                start_date=start_date,
+                end_date=end_date
+            )
+            print(context)
             return render_template("results.html", **context)
 
-    # For GET, use session only if no new POST
-    search_text = session.get("search_text", "")
-    if search_text:
+    # --- Handle GET requests ---
+    search_text = session.get('search_text', '')
+    start_date = session.get('start_date', '')
+    end_date = session.get('end_date', '')
+    limit = session.get('limit', 50)
+
+    if search_text or start_date or end_date:
         context = search.return_file(
-            'search', text=search_text, image='',
-            table='photos_db', limit=50, filter_expr=''
+            'search',
+            text=search_text,
+            image='',
+            table='photos_db',
+            limit=limit,
+            filter_expr='',
+            start_date=start_date,
+            end_date=end_date
         )
         return render_template("results.html", **context)
-    # except Exception as e:
-    #     print(f"Error during search: {e}")
-    #     return render_template("results.html")
 
+    # --- Default render if no search/filter ---
     return render_template("results.html")
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')

@@ -9,6 +9,7 @@ import torch
 from PIL import Image
 from facenet_pytorch import InceptionResnetV1, MTCNN
 from torchvision import transforms
+from tqdm import tqdm
 
 # -----------------------
 # CPU-only device
@@ -85,7 +86,7 @@ def process_image(file_path):
 # -----------------------
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--directory', required=True, help='Path to image folder')
+    parser.add_argument('--directory', help='Path to image folder', default='/Volumes/T7/photos_from_icloud')
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--output', default='/Volumes/T7/photos_from_icloud-out/embeddings_new.jsonl')
     args = parser.parse_args()
@@ -104,6 +105,7 @@ if __name__ == '__main__':
                     processed_files.add(obj['filename'])
                 except:
                     continue
+    files_to_process = []
     for subfolder in base_folder.iterdir():
         if subfolder.is_dir():
             for file in subfolder.iterdir():
@@ -111,20 +113,20 @@ if __name__ == '__main__':
                     continue
                 elif str(file) in processed_files:
                     continue
-                try:
-                    entry = process_image(file)
-                    buffer.append(entry)
-                    i += 1
-                except Exception as e:
-                    print(f"Skipping {file}: {e}")
+                files_to_process.append(file)
+    for file in tqdm(files_to_process, desc="Processing images"):
+        try:
+            entry = process_image(file)
+            buffer.append(entry)
+            i += 1
+        except Exception as e:
+            print(f"Skipping {file}: {e}")
 
-                # Write in batches
-                if len(buffer) >= args.batch_size:
-                    with open(output_path, 'a') as f:
-                        for e in buffer:
-                            f.write(json.dumps(e) + '\n')
-                    print(f"Processed {i} images")
-                    buffer = []
+        if len(buffer) >= args.batch_size:
+            with open(output_path, 'a') as f:
+                for e in buffer:
+                    f.write(json.dumps(e) + '\n')
+            buffer = []
 
     # Write remaining entries
     if buffer:

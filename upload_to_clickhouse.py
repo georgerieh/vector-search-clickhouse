@@ -54,11 +54,10 @@ df = df.explode('facenet_embeddings')
 df['facenet_embedding'] = df['facenet_embeddings'].apply(
     lambda x: x.get('embedding', []) if isinstance(x, dict) else [0.0] * 512)
 df.drop('facenet_embeddings', inplace=True, axis=1)
-
 client = clickhouse_connect.get_client(host='localhost', port=8123, username='default', password='')
-client.command('''DROP TABLE IF EXISTS photos_db;''')
 client.command('''
-CREATE TABLE photos_db (
+               CREATE TABLE IF NOT EXISTS photos_db
+               (
     filename String,
     subfolder Nullable(String),
     date Nullable(String),
@@ -71,11 +70,13 @@ CREATE TABLE photos_db (
     path Nullable(String),
     lat Nullable(Float32),
     lon Nullable(Float32)
-) ENGINE = MergeTree()
+                   ) ENGINE = ReplacingMergeTree
+               (
+               )
 ORDER BY filename;
 ''')
 
 
 client.insert_df('photos_db', df)
-
-print("Data uploaded successfully!")
+count = df.groupby('filename')
+print(f"Data uploaded successfully! - {len(df)} photos inserted.")

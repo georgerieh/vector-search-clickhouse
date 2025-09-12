@@ -83,6 +83,8 @@ def list_of_lists_to_clickhouse_array(lst_of_lsts):
 
 def _search(client, dino_query, facenet_query, limit=10, filter_expr='', start_date='', end_date=''):
     print('_searching')
+    seen = set()
+    rows = []
     start = time.time()
     if not start_date:
         ignore = False
@@ -123,8 +125,10 @@ def _search(client, dino_query, facenet_query, limit=10, filter_expr='', start_d
         """
         print(query)
         result = client.query(query)
-        et = time.time()
-        rows = [{
+        for row in result.result_rows:
+            if row[0] not in seen:
+                seen.add(row[0])
+                rows.append({
             # 'url': unquote(row[2] + "/" + row[3])
             'location': row[1],
             'url': unquote(row[0]).replace("/Volumes/T7/photos_from_icloud/", ''),
@@ -134,10 +138,12 @@ def _search(client, dino_query, facenet_query, limit=10, filter_expr='', start_d
             # 'embedding': row[7],
             # 'location': [row[3], row[4]],
             "timestamp": int(os.path.getmtime(row[0]))
-        }
-            for row in result.result_rows]
+                })
+
+        et = time.time()
         return rows, {'query_time': round(et - st, 3)}
     elif start_date and not end_date:
+        limit = limit if limit else 1
         st = time.time()
         query = f"""
                 SELECT path, location, subfolder, filename, lat, lon, date
@@ -147,23 +153,26 @@ def _search(client, dino_query, facenet_query, limit=10, filter_expr='', start_d
                         FROM photos_db
                     )
                 WHERE toDate(date) BETWEEN toDate('{start_date.replace("-", ":")}') 
-                AND toDate('{start_date.replace("-", ":")}') + INTERVAL 1 DAY
+                AND toDate('{start_date.replace("-", ":")}') + INTERVAL {limit if isinstance(limit, int) else 1} DAY
+                ORDER BY path ASC
                 """
         print(query)
         result = client.query(query)
         et = time.time()
-        rows = [{
-            # 'url': unquote(row[2] + "/" + row[3])
-            'location': row[1],
-            'url': unquote(row[0]).replace("/Volumes/T7/photos_from_icloud/", ''),
-            'score': 0,
-            'lat': row[4],
-            'lon': row[5],
-            # 'embedding': row[7],
-            # 'location': [row[3], row[4]],
-            "timestamp": int(os.path.getmtime(row[0]))
-        }
-            for row in result.result_rows]
+        for row in result.result_rows:
+            if row[0] not in seen:
+                seen.add(row[0])
+                rows.append({
+                    # 'url': unquote(row[2] + "/" + row[3])
+                    'location': row[1],
+                    'url': unquote(row[0]).replace("/Volumes/T7/photos_from_icloud/", ''),
+                    'score': round(row[4], 3),
+                    'lat': row[4],
+                    'lon': row[5],
+                    # 'embedding': row[7],
+                    # 'location': [row[3], row[4]],
+                    "timestamp": int(os.path.getmtime(row[0]))
+                })
         return rows, {'query_time': round(et - st, 3)}
     elif start_date and end_date:
         st = time.time()
@@ -176,22 +185,25 @@ def _search(client, dino_query, facenet_query, limit=10, filter_expr='', start_d
                             )
                         WHERE toDate(date) BETWEEN toDate('{start_date.replace("-", ":")}') 
                         AND toDate('{end_date.replace("-", ":")}')
+                        ORDER BY path ASC
                         """
         print(query)
         result = client.query(query)
         et = time.time()
-        rows = [{
-            # 'url': unquote(row[2] + "/" + row[3])
-            'location': row[1],
-            'url': unquote(row[0]).replace("/Volumes/T7/photos_from_icloud/", ''),
-            'score': 0,
-            'lat': row[4],
-            'lon': row[5],
-            # 'embedding': row[7],
-            # 'location': [row[3], row[4]],
-            "timestamp": int(os.path.getmtime(row[0]))
-        }
-            for row in result.result_rows]
+        for row in result.result_rows:
+            if row[0] not in seen:
+                seen.add(row[0])
+                rows.append({
+                    # 'url': unquote(row[2] + "/" + row[3])
+                    'location': row[1],
+                    'url': unquote(row[0]).replace("/Volumes/T7/photos_from_icloud/", ''),
+                    'score': round(row[4], 3),
+                    'lat': row[4],
+                    'lon': row[5],
+                    # 'embedding': row[7],
+                    # 'location': [row[3], row[4]],
+                    "timestamp": int(os.path.getmtime(row[0]))
+                })
         return rows, {'query_time': round(et - st, 3)}
     else:
         return [{
@@ -203,7 +215,7 @@ def _search(client, dino_query, facenet_query, limit=10, filter_expr='', start_d
             'lon': '',
             # 'embedding': row[7],
             # 'location': [row[3], row[4]],
-            "timestamp": ''
+            "timestamp": '',
         }
         ]
 
@@ -258,11 +270,12 @@ def return_file(search_parser, text, image, table, limit, filter_expr='', start_
                                                end_date=end_date, use_dino_extract=0)
     print('image', image)
     output = {
-    "images": images,
+        "images": images if isinstance(images, list) else [],
     "table": table,
     "search_text": text,
         "source_image": unquote(image).replace("/Volumes/T7/photos_from_icloud/", ''),
     "gen_time": stats.get('generation_time', 0),
     "query_time": stats.get('query_time', 0),
-}
+        'start_date': start_date if start_date is not None else '',
+    }
     return output
