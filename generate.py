@@ -1,90 +1,134 @@
 #!/usr/bin/python3
 import argparse
-import time
 import json
-import subprocess
-from PIL import Image
-import clip
-import torch
-import os
-import shutil
 from pathlib import Path
-import subprocess
-import numpy as np
-import pickle
-def was_taken(file_path):
-    try:
-        result = subprocess.run(
-            ['exiftool', '-Make', str(file_path)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True
-        )
-        return result.stdout.strip().split(':')[-1].strip() != ''
-    except Exception:
-        return False
-    
 
-batch_size = 64
-embeddings_buffer = []
-i = 0
+import numpy as np
+import timm
+import torch
+from PIL import Image
+from facenet_pytorch import InceptionResnetV1, MTCNN
+from torchvision import transforms
+
+# -----------------------
+# CPU-only device
+# -----------------------
+device = torch.device('cpu')
+
+# -----------------------
+# Models
+# -----------------------
+# DINO: pretrained ViT-Small
+dino_model = timm.create_model('vit_base_patch16_224.dino', pretrained=True, num_classes=0)
+dino_model.eval().to(device)
+dino_model.to(device)
+
+# FaceNet
+mtcnn = MTCNN(keep_all=True, device=device)
+facenet_model = InceptionResnetV1(pretrained='vggface2').eval().to(device)
+
+# Preprocessing
+dino_preprocess = transforms.Compose([
+    transforms.Resize(224),
+    transforms.CenterCrop(224),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+])
+
+
+# -----------------------
+# Helper function
+# -----------------------
+def normalize_vector(v):
+    v = np.array(v, dtype=np.float32)
+    norm = np.linalg.norm(v)
+    if norm == 0:
+        return v.tolist()
+    return (v / norm).tolist()
+
+
+def process_image(file_path):
+    """Compute DINO and FaceNet embeddings for a single image"""
+    entry = {"filename": str(file_path), "faces": []}
+
+    # --- DINO embedding ---
+    img = Image.open(file_path).convert('RGB')
+    tensor = dino_preprocess(img).unsqueeze(0).to(device)
+    with torch.no_grad():
+        feats = dino_model.forward_features(tensor)
+        if feats.ndim == 3:
+            dino_feat = feats[:, 0, :]  # CLS token only, shape: [1, 768]
+        elif feats.ndim == 2:
+            dino_feat = feats  # already [1, 768]
+        dino_feat = dino_feat.squeeze(0)  # final shape: [768]
+
+    entry['dino_embedding'] = normalize_vector(dino_feat.cpu().numpy())
+
+    # --- Face detection + FaceNet ---
+    boxes, probs = mtcnn.detect(img)
+    faces = mtcnn(img)  # aligned face tensors
+    if faces is not None and boxes is not None:
+        for face_tensor, prob in zip(faces, probs):
+            if prob is None or prob < 0.90:  # skip low-confidence
+                continue
+            with torch.no_grad():
+                face_feat = facenet_model(face_tensor.unsqueeze(0).to(device))
+            entry['faces'].append({
+                "confidence": float(prob),
+                "embedding": normalize_vector(face_feat[0].cpu().numpy())
+            })
+    return entry
+
+
+# -----------------------
+# Main script
+# -----------------------
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        prog='generate',
-        description='Generate CLIP embeddings for images or text')
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('--text', required=False)
-    group.add_argument('--image', required=False)
-    group.add_argument('--file', required=False)
-    group.add_argument('--directory', required=False)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--directory', required=True, help='Path to image folder')
+    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--output', default='/Volumes/T7/photos_from_icloud-out/embeddings_new.jsonl')
     args = parser.parse_args()
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"using {device}")
-    device = torch.device(device)
-    model, preprocess = clip.load("ViT-B/32", device=device)
-    images = []
-    if args.text:
-        inputs = clip.tokenize(args.text).to(device)
-        with torch.no_grad():
-            print(model.encode_text(inputs)[0].tolist())
-    elif args.image:
-        image = preprocess(Image.open(args.image)).unsqueeze(0).to(device)
-        with torch.no_grad():
-            print(model.encode_image(image)[0].tolist())
-    elif args.file:
-        with open(args.file, 'r') as input_file, torch.no_grad(), open('output.txt', 'w') as output_file:
-            st = time.time()
-            c = 0
-            for line in input_file:
-                c += 1
-                inputs = clip.tokenize(line).to(device)
-                embedding = model.encode_text(inputs)[0].tolist()
-                output_file.write(f'{embedding}\n')
-            et = time.time()
-            print(f'{c} embeddings generated in {round(et-st, 3)}s')
-    elif args.directory:
-        base_folder = Path(args.directory)
-        destination = Path(str(args.directory) + '-out')
-        destination.mkdir(exist_ok=True)
-        output_file_path = str(destination / 'output.jsonl')
-        for subfolder in base_folder.iterdir():
-            if subfolder.is_dir():
-                for file in subfolder.iterdir():
-                    if file.is_file():
-                        if file.name.startswith('.') or not ('jpeg' in file.name or 'jpg' in file.name) or not was_taken(file):
-                            continue
-                        image = preprocess(Image.open(file)).unsqueeze(0).to(device)
-                        with torch.no_grad():
-                            embedding = model.encode_image(image)[0].tolist()
-                        entry = {'filename': f'{str(subfolder.name).replace(" ", "_")}/{str(file.name)}', 'embedding': embedding}
-                        embeddings_buffer.append(entry)
-                        if len(embeddings_buffer) >= batch_size:
-                            with open(output_file_path, 'a') as outfile:
-                                for entry in embeddings_buffer:
-                                    json.dump(entry, outfile)
-                                    if i % 50 == 0:
-                                        print(f'Processed {i} images')
-                                        print(f'Last entry: {entry}')
-                                    i += 1
-                                    outfile.write('\n')
-                            embeddings_buffer = []
+
+    base_folder = Path(args.directory)
+    output_path = Path(args.output)
+    output_path.parent.mkdir(exist_ok=True, parents=True)
+    buffer = []
+    i = 0
+    processed_files = set()
+    if output_path.exists():
+        with open(output_path, 'r') as f:
+            for line in f:
+                try:
+                    obj = json.loads(line)
+                    processed_files.add(obj['filename'])
+                except:
+                    continue
+    for subfolder in base_folder.iterdir():
+        if subfolder.is_dir():
+            for file in subfolder.iterdir():
+                if not file.is_file() or not file.suffix.lower() in ['.jpg', '.jpeg'] or file.name.startswith('.'):
+                    continue
+                elif str(file) in processed_files:
+                    continue
+                try:
+                    entry = process_image(file)
+                    buffer.append(entry)
+                    i += 1
+                except Exception as e:
+                    print(f"Skipping {file}: {e}")
+
+                # Write in batches
+                if len(buffer) >= args.batch_size:
+                    with open(output_path, 'a') as f:
+                        for e in buffer:
+                            f.write(json.dumps(e) + '\n')
+                    print(f"Processed {i} images")
+                    buffer = []
+
+    # Write remaining entries
+    if buffer:
+        with open(output_path, 'a') as f:
+            for e in buffer:
+                f.write(json.dumps(e) + '\n')
+        print(f"Processed total {i} images")
