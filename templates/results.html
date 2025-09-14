@@ -1,12 +1,22 @@
 <html lang="en">
 
 <head>
-	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-		integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-		integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+    <link href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" rel="stylesheet"/>
+    <link href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" rel="stylesheet"/>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
+    <script src="https://unpkg.com/leaflet.fullscreen/leaflet.fullscreen.min.js"></script>
+
+    <!--	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"-->
+    <!--		integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />-->
+    <!--	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"-->
+    <!--		integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>-->
+    <!--	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>-->
+    <!--	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>-->
+    <!--    <script src="http://cdn.leafletjs.com/leaflet-0.7.3/leaflet.js"></script>-->
 	<script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/Leaflet.fullscreen.min.js'></script>
 	<link href='https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/leaflet.fullscreen.css'
 		rel='stylesheet' />
@@ -14,7 +24,10 @@
     <link href="https://cdn.maptiler.com/maptiler-sdk-js/v3.5.0/maptiler-sdk.css" rel="stylesheet" />
     <script src="https://cdn.maptiler.com/leaflet-maptilersdk/v4.1.0/leaflet-maptilersdk.umd.min.js"></script> -->
 	<script src="http://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js">
-	</script>
+        <script
+            src="https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-markercluster/v0.4.0/leaflet.markercluster.js"></script>
+
+    </script>
 	<meta charset="utf-8">
 	<title>ClickSearch: Results for search image. Fork by Georg Riekhakainen (georgerieh)</title>
 	<style>
@@ -32,34 +45,34 @@
         }
 
         .gallery {
-            flex: 1 1 50%; /* take half the width */
+            flex: 1 1 40%; /* take half the width */
             min-width: 300px; /* ensure it doesn’t shrink too much */
             height: 400px;
             position: relative; /* needed for absolute controls */
             box-sizing: border-box;
         }
 
-        .photo-selection {
-            position: absolute;
-            bottom: 10px; /* Adjust as needed to position it above the controls */
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.6); /* Semi-transparent background for readability */
-            padding: 5px 10px;
-            border-radius: 5px;
-            display: flex;
-            align-items: center;
-            gap: 8px; /* Space between checkbox and label */
-            z-index: 4; /* Ensure it's above other photo layers but below controls */
-            opacity: 0; /* Start hidden */
-            transition: opacity 0.3s ease-in-out;
-        }
+        /*.photo-selection {*/
+        /*    position: absolute;*/
+        /*    bottom: 10px; !* Adjust as needed to position it above the controls *!*/
+        /*    left: 50%;*/
+        /*    transform: translateX(-50%);*/
+        /*    background: rgba(0, 0, 0, 0.6); !* Semi-transparent background for readability *!*/
+        /*    padding: 5px 10px;*/
+        /*    border-radius: 5px;*/
+        /*    display: flex;*/
+        /*    align-items: center;*/
+        /*    gap: 8px; !* Space between checkbox and label *!*/
+        /*    z-index: 4; !* Ensure it's above other photo layers but below controls *!*/
+        /*    opacity: 0; !* Start hidden *!*/
+        /*    transition: opacity 0.3s ease-in-out;*/
+        /*}*/
 
         .photo {
             position: absolute;
             top: 0;
             left: 50%;
-            width: 60%; /* maybe reduce to 50% */
+            width: 50%; /* maybe reduce to 50% */
             height: 100%;
             transform: translateX(-50%);
             background-size: cover;
@@ -109,7 +122,7 @@
 
         .controls {
             position: absolute;
-            bottom: 20px;
+            bottom: -120px;
             width: 100%;
             text-align: center;
             z-index: 10; /* make sure it’s above photos */
@@ -133,25 +146,16 @@
             padding-left: 36px;
         }
 
-        /*#map {*/
-        /*	width: 100%;*/
-        /*	height: 100%;*/
-        /*}*/
-        /*#deleteButton {*/
-        /*    position: fixed;       !* stay in place even when scrolling *!*/
-        /*    top: 50%;              !* vertically centred *!*/
-        /*    left: 50%;             !* horizontally centred *!*/
-        /*    transform: translate(-50%, -50%); !* perfectly centre the button *!*/
-        /*    z-index: 9999;         !* ensure it's above other elements *!*/
-        /*    padding: 12px 24px;*/
-        /*    background: #fcff74;*/
-        /*    color: #000;*/
-        /*    font-weight: bold;*/
-        /*    border: none;*/
-        /*    border-radius: 8px;*/
-        /*    cursor: pointer;*/
-        /*    box-shadow: 0px 4px 12px rgba(0,0,0,0.3);*/
-        /*}*/
+        .photo-selection {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2; /* above the photo-link */
+            background: rgba(0, 0, 0, 0.6);
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
         .photo-selection input[type="checkbox"] {
             /* Basic styling for the checkbox itself */
             width: 18px;
@@ -167,6 +171,14 @@
             user-select: none; /* Prevent text selection on label */
         }
 
+        .photo-link {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1; /* under the checkbox */
+        }
         /* Optional: Style for the delete button to make it more prominent */
         #deleteButton {
             background: #fcff74;
@@ -252,6 +264,7 @@
 
 		#map {
 			height: 400px;
+            z-index: 5;
 			/* Set the height of the map */
 			/* width: 50% ;   Allow the map to take the full width of the cell */
 		}
@@ -359,22 +372,37 @@
 <body>
 	<header class='title-area'>
 		<div class='container'>
+            {% if source_image %}
 				<div class="grid-item">
 					<h2>Results for:</h2>
                     <!--					<img src="{{ url_for('serve_file', filename=source_image) }}" /> -->
                     <img src="{{ url_for('serve_file', filename=source_image) }}"/>
 				</div>
+            {% elif start_date %}
+            <div class="grid-item">
+                <h2>Results for memory from {{start_date}}</h2>
+            </div>
+            {% else %}
+            <div class="grid-item">
+                <h2>Look for your memories!</h2>
+            </div>
+            {% endif %}
             <!--			</div>-->
 			<div class='section'>
 				<form action="/" method="post" enctype="multipart/form-data">
-					<input type="text" id="limit" name="limit" placeholder="How many?">
-                    <input accept="image/*" id="image-in" name="image" type="file">
+                    <!--                    <input type="hidden" name="start_date" value="{{ session.get('start_date', '') }}">-->
+                    <!--                    <input type="hidden" name="end_date" value="{{ session.get('end_date', '') }}">-->
+                    <!--                    <input type="hidden" name="limit" value="{{ session.get('limit', '') }}">-->
+                    <!--                    <input type="hidden" name="search_text" value="{{ session.get('search_text', '') }}">-->
+                    <!--                    <input type="hidden" name="image" value="{{ session.get('saved_image_path', '') }}">-->
+                    <input accept="image/*" id="image-in" name="image" type="file"><br><br>
 
                     <label for="start-date">Start Date:</label>
-                    <input id="start-date" name="start_date" type="date">
+                    <input id="start-date" name="start_date" type="date"><br><br>
 
                     <label for="end-date">End Date:</label>
-                    <input id="end-date" name="end_date" type="date">
+                    <input id="end-date" name="end_date" type="date"><br><br>
+                    <input id="limit" name="limit" placeholder="How many photos / days?" type="text"><br><br>
 
                     <button name="forwardBtn" type="submit">Look up</button>
 				</form>
@@ -406,20 +434,23 @@
                     {% elif loop.index0 == 2 %}next2
                     {% elif loop.revindex0 == 0 %}prev
                     {% elif loop.revindex0 == 1 %}prev2{% endif %}"
-                     style="background-image: url('{{ url_for('serve_file', filename=image.url) }}?v={{ image.timestamp }}');">
+                     style="background-image: url('{{ url_for('serve_file', filename=image.url) }}');">
+                    <a class="photo-link" href="{{ url_for('serve_file', filename=image.url) }}" target="_blank"></a>
                     <div class="photo-selection">
                         <input id="checkbox-{{ loop.index }}" name="image_paths" type="checkbox"
                                value="{{ image.url }}">
-                        <label for="checkbox-{{ loop.index }}">Select for Deletion</label>
+                        <label for="checkbox-{{ loop.index }}">Bad photo?</label>
                     </div>
                 </div>
+
+
                 {% endfor %}
+                {% if images %}
                 <div class="controls">
                     <button id="prevBtn" type="button">Prev</button>
                     <button id="nextBtn" type="button">Next</button>
                 </div>
-
-                <!-- GALLERY SCRIPT MOVED HERE: Directly after the controls, but still inside the .gallery div -->
+                {% endif %}
                 <script>
                     const photos = document.querySelectorAll('.photo');
                     let activeIndex = 0;
@@ -448,7 +479,9 @@
                     updateGallery();
                 </script>
             </div>
+            {% if images %}
             <button id="deleteButton" type="submit">Delete Selected</button>
+            {% endif %}
         </form>
 
         <!-- SECOND COLUMN: The map container -->
@@ -457,16 +490,18 @@
             </div>
             <script>
                 {%
-                    if images is
-                    not
-                    undefined %
+                    if images %
                 }
+                var clusters = L.markerClusterGroup({
+                    spiderfyOnMaxZoom: true,
+                    showCoverageOnHover: false,
+                    zoomToBoundsOnClick: true
+                });
                 const map = L.map('map', {fullscreenControl: true}).setView([48.505, 2.33], 3);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     maxZoom: 16,
                     attribution: '© OpenStreetMap contributors'
                 }).addTo(map);
-
                 const imagesData = {
                 {
                     images | tojson
@@ -475,18 +510,13 @@
                 ;
                 imagesData.forEach(image => {
                     if (image.lat) {
-                        console.log(image.url)
-                        const marker = L.marker([image.lat, image.lon]).addTo(map);
+
+                        const marker = L.marker([image.lat, image.lon]);
+                        clusters.addLayer(marker);
                         marker.bindPopup(`<img src="{{ url_for('serve_file', filename='') }}${image.url}" style="width:150px; height:auto;">`);
-
-
                     }
                 });
-
-                const heatPoints = imagesData.filter(image => image.lat).map(image => {
-                    return [image.lon, image.lat, 1];
-                });
-                L.heatLayer(heatPoints, {radius: 25, blur: 15}).addTo(map);
+                clusters.addTo(map);
                 {%
                     endif %
                 }

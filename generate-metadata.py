@@ -1,21 +1,25 @@
 #!/usr/bin/python3
 import argparse
-import time
 import json
+import os
 import subprocess
-from PIL import Image
+import time
+from pathlib import Path
+
 import clip
 import torch
-from pathlib import Path
-import subprocess
-import numpy as np
+from PIL import Image
+
 data = []
 import pytesseract
+
+
 def dms_to_decimal(degrees, minutes, seconds, direction):
     decimal = degrees + (minutes / 60) + (seconds / 3600)
-    if direction in ['S', 'W']:
+    if direction in ["S", "W"]:
         decimal = -decimal
     return decimal
+
 
 def gps_to_decimal(gps_str):
     try:
@@ -26,21 +30,33 @@ def gps_to_decimal(gps_str):
         direction = parts[4]
         return dms_to_decimal(deg, minutes, seconds, direction)
     except Exception:
-        return ''
+        return ""
+
 
 def get_location(exif_data):
     if "GPSLongitude" in exif_data and "GPSLatitude" in exif_data:
         lon = gps_to_decimal(exif_data["GPSLongitude"])
         lat = gps_to_decimal(exif_data["GPSLatitude"])
         if lon is not None and lat is not None:
-            return [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]}}, lat, lon]
-    return ['', 0.0, 0.0]
+            return [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                },
+                lat,
+                lon,
+            ]
+    return ["", 0.0, 0.0]
+
 
 def get_text_from_image(file_path):
     try:
-        return ' '.join(pytesseract.image_to_string(Image.open(file_path), lang='eng+rus').split())
+        return " ".join(
+            pytesseract.image_to_string(Image.open(file_path), lang="eng+rus").split()
+        )
     except Exception:
         return ""
+
 
 def parse_exiftool_json(json_data):
     for item in json_data:
@@ -52,50 +68,65 @@ def parse_exiftool_json(json_data):
         subfolder = path.parent.name
         file_name = path.name
 
-        location = get_location(item)
-        created_date = item.get("CreateDate", "").split(" ")[0] if "CreateDate" in item else ''
+        location, lat, lon = get_location(item)
+        created_date = (
+            item.get("CreateDate", "").split(" ")[0] if "CreateDate" in item else ""
+        )
         height = item.get("ExifImageHeight")
         width = item.get("ExifImageWidth")
 
         row = [
-            str(path.relative_to(path.parents[1])).replace(" ", "_"),  # relative path with subfolder
+            str(path.relative_to(path.parents[1])).replace(
+                " ", "_"
+            ),  # relative path with subfolder
             file_name,
             subfolder,
             created_date,
             height,
             width,
-            json.dumps(location) if location else '',
-            get_text_from_image(path),
+            json.dumps(location) if location else "",
+            # get_text_from_image(path),
+            "",
             lat,
-            lon
+            lon,
         ]
         yield row
 
-def run_exiftool(directory):
 
-    subprocess.run([
-        "exiftool",
-        "-r",  # recursive
-        "-Make", "-CreateDate", "-ExifImageHeight", "-ExifImageWidth",
-        "-GPSLongitude", "-GPSLatitude",
-        "-j",  # JSON output
-        directory
-    ], stdout=open(directory + '/output.json', "w"))
+def run_exiftool(directory):
+    output_file = os.path.join(directory, "output.json")
+    with open(output_file, "w") as f:
+        subprocess.run(
+            [
+                "exiftool",
+                "-r",  # recursive
+                "-Make",
+                "-CreateDate",
+                "-ExifImageHeight",
+                "-ExifImageWidth",
+                "-GPSLongitude",
+                "-GPSLatitude",
+                "-j",  # JSON output
+                directory,
+            ],
+            stdout=f,
+        )
+
 
 def reorganize_to_jsonl(json_input, jsonl_output):
     with open(json_input) as f, open(jsonl_output, "w") as out_f:
         data = json.load(f)
         for row in parse_exiftool_json(data):
             out_f.write(json.dumps(row) + "\n")
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        prog='generate',
-        description='Generate metadata')
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(prog="generate", description="Generate metadata")
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('--text', required=False)
-    group.add_argument('--image', required=False)
-    group.add_argument('--file', required=False)
-    group.add_argument('--directory', required=False)
+    group.add_argument("--text", required=False)
+    group.add_argument("--image", required=False)
+    group.add_argument("--file", required=False)
+    group.add_argument("--directory", required=False)
     args = parser.parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"using {device}")
@@ -111,20 +142,26 @@ if __name__ == '__main__':
         with torch.no_grad():
             print(model.encode_image(image)[0].tolist())
     elif args.file:
-        with open(args.file, 'r') as input_file, torch.no_grad(), open('output.txt', 'w') as output_file:
+        with (
+            open(args.file, "r") as input_file,
+            torch.no_grad(),
+            open("output.txt", "w") as output_file,
+        ):
             st = time.time()
             c = 0
             for line in input_file:
                 c += 1
                 inputs = clip.tokenize(line).to(device)
                 embedding = model.encode_text(inputs)[0].tolist()
-                output_file.write(f'{embedding}\n')
+                output_file.write(f"{embedding}\n")
             et = time.time()
-            print(f'{c} embeddings generated in {round(et-st, 3)}s')
+            print(f"{c} embeddings generated in {round(et - st, 3)}s")
     elif args.directory:
         base_folder = Path(args.directory)
-        destination = Path(str(args.directory) + '-out')
+        destination = Path(str(args.directory) + "-out")
         destination.mkdir(exist_ok=True)
-        output_file_path = str(destination / 'metadata.jsonl')
+        output_file_path = str(destination / "metadata.jsonl")
         run_exiftool(directory=args.directory)
-        reorganize_to_jsonl(args.directory + '/output.json', args.directory + '-out/metadata.jsonl')
+        reorganize_to_jsonl(
+            args.directory + "/output.json", args.directory + "-out/metadata.jsonl"
+        )
